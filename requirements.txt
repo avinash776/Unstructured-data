@@ -1,0 +1,15 @@
+# Requirements for the Streamlit audio/text demo in app.py
+# Notes:
+# - pydub requires ffmpeg/avlib installed on the system (not a Python package).
+#   On Windows, download ffmpeg and add it to PATH: https://ffmpeg.org/
+# - speech_recognition uses online Google Web Speech API by default (no API key required
+#   for small/demo use). For offline/local recognition you may need additional engines.
+
+streamlit>=1.20
+gTTS>=2.3.0
+SpeechRecognition>=3.8.1
+pydub>=0.25.1
+
+# Optional (if you plan to load or manipulate audio in numpy or use advanced audio
+# processing):
+# numpy>=1.24
