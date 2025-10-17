@@ -183,6 +183,10 @@ with tab1:
                 st.subheader("👤 Face Detection")
                 try:
                     import cv2
+                    import os
+                    
+                    # Set environment variable to avoid OpenGL issues
+                    os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
                     
                     # Convert to OpenCV format
                     img_cv = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
@@ -209,8 +213,13 @@ with tab1:
                     else:
                         st.warning("No faces detected in the image.")
                 
+                except ImportError as e:
+                    st.error(f"❌ OpenCV not properly installed: {str(e)}")
+                    st.info("💡 This app requires system packages. Make sure `packages.txt` is deployed with the app.")
                 except Exception as e:
-                    st.error(f"Error during face detection: {str(e)}")
+                    st.error(f"❌ Error during face detection: {str(e)}")
+                    if "libGL" in str(e):
+                        st.info("💡 Missing system library. Ensure `packages.txt` contains: libgl1-mesa-glx")
             
             # ==========================
             # 3. OBJECT DETECTION
@@ -220,6 +229,10 @@ with tab1:
                 st.subheader("🎯 Object Detection with YOLO")
                 try:
                     from ultralytics import YOLO
+                    import os
+                    
+                    # Set environment variable to avoid OpenGL issues
+                    os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
                     
                     # Load YOLO model (will download on first use)
                     model = YOLO('yolov8n.pt')  # Using nano model for speed
@@ -254,9 +267,15 @@ with tab1:
                     else:
                         st.info("No objects detected with high confidence.")
                 
+                except ImportError as e:
+                    st.error(f"❌ YOLO not properly installed: {str(e)}")
+                    st.info("💡 Run: `pip install ultralytics`")
                 except Exception as e:
-                    st.error(f"Error during object detection: {str(e)}")
-                    st.info("Note: First run will download the YOLO model (~6MB)")
+                    st.error(f"❌ Error during object detection: {str(e)}")
+                    if "libGL" in str(e):
+                        st.info("💡 Missing system library. Ensure `packages.txt` contains: libgl1-mesa-glx")
+                    else:
+                        st.info("💡 First run will download the YOLO model (~6MB). Check your internet connection.")
             
             # ==========================
             # 4. AGE, GENDER, EMOTION
@@ -266,6 +285,10 @@ with tab1:
                 st.subheader("🎭 Age, Gender & Emotion Analysis")
                 try:
                     from deepface import DeepFace
+                    import os
+                    
+                    # Set environment variable to avoid OpenGL issues
+                    os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
                     
                     # Save image temporarily for DeepFace
                     temp_path = "temp_image.jpg"
@@ -306,13 +329,20 @@ with tab1:
                     st.json(emotion_df)
                     
                     # Clean up temp file
-                    import os
                     if os.path.exists(temp_path):
                         os.remove(temp_path)
                 
+                except ImportError as e:
+                    st.error(f"❌ DeepFace not properly installed: {str(e)}")
+                    st.info("💡 Run: `pip install deepface tf-keras`")
                 except Exception as e:
-                    st.error(f"Error during analysis: {str(e)}")
-                    st.info("Note: Make sure there's a clear face in the image. First run will download models.")
+                    st.error(f"❌ Error during analysis: {str(e)}")
+                    if "libGL" in str(e):
+                        st.info("💡 Missing system library. Ensure `packages.txt` contains: libgl1-mesa-glx")
+                    elif "No face" in str(e) or "Face could not be detected" in str(e):
+                        st.warning("⚠️ No clear face detected in the image. Please use a photo with a visible frontal face.")
+                    else:
+                        st.info("💡 First run will download AI models (~100MB). This may take a few minutes.")
             
             # ==========================
             # 5. BACKGROUND REMOVAL
@@ -322,6 +352,10 @@ with tab1:
                 st.subheader("🖼️ Background Removal")
                 try:
                     from rembg import remove
+                    import os
+                    
+                    # Set environment variable
+                    os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
                     
                     # Remove background
                     output_img = remove(image_np)
@@ -331,9 +365,18 @@ with tab1:
                     # Save to session state for potential reuse
                     st.session_state['no_bg_image'] = output_img
                 
+                except ImportError as e:
+                    st.error(f"❌ Background removal library not properly installed: {str(e)}")
+                    if "onnxruntime" in str(e):
+                        st.info("💡 Run: `pip install onnxruntime rembg`")
+                    else:
+                        st.info("💡 Run: `pip install rembg`")
                 except Exception as e:
-                    st.error(f"Error removing background: {str(e)}")
-                    st.info("Note: First run will download the background removal model")
+                    st.error(f"❌ Error removing background: {str(e)}")
+                    if "libGL" in str(e):
+                        st.info("💡 Missing system library. Ensure `packages.txt` contains: libgl1-mesa-glx")
+                    else:
+                        st.info("💡 First run will download the background removal model (~50MB). Check your internet connection.")
             
             # Final success message
             st.markdown("---")

@@ -17,12 +17,13 @@ pydub>=0.25.1
 # Image Analysis Dependencies
 Pillow>=9.0.0
 numpy>=1.24.0
-opencv-python-headless>=4.8.0
+opencv-python-headless==4.8.1.78
 ultralytics>=8.0.0
 deepface>=0.0.79
 rembg>=2.0.50
-torch>=2.0.0
-torchvision>=0.15.0
+onnxruntime>=1.16.0
+tf-keras>=2.15.0
+protobuf==3.20.3
 
 # Text Analysis Dependencies
 textblob>=0.17.0
