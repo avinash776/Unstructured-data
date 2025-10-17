@@ -1,6 +1,7 @@
 # Core
 streamlit==1.32.0
-numpy==1.24.3
+# Use a wheel-available NumPy version compatible with TF/OpenCV on Cloud
+numpy==1.26.4
 pillow==10.2.0
 pandas==2.0.3
 
@@ -22,6 +23,10 @@ onnxruntime==1.17.0
 tensorflow==2.15.0
 tf-keras==2.15.0
 protobuf==3.20.3
+
+# Build helpers (avoid sdist compilation issues on some environments)
+setuptools>=70.0.0
+wheel
 
 # Text Analysis
 textblob==0.18.0

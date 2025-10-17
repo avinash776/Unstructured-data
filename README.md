@@ -51,6 +51,12 @@ Run the sanity check to verify dependencies:
 - Background removal works best with distinct subjects
 - If Streamlit errors, restart the app
 
+### Streamlit Cloud deployment tips
+- Add `runtime.txt` with `python-3.11.9` to pin a supported runtime.
+- Use `numpy==1.26.4` to ensure wheels are available and avoid building from source on Python 3.13.
+- Include `setuptools` and `wheel` in `requirements.txt` to prevent sdist build issues.
+- If you hit `ModuleNotFoundError: No module named 'distutils'` during pip install, it typically means the environment is Python 3.13; pin to 3.11 via `runtime.txt`.
+
 ## File Structure
 - `app.py` - Main Streamlit application
 - `requirements.txt` - Python dependencies
