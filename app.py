@@ -1,4 +1,25 @@
 import streamlit as st
+
+# --- Streamlit compatibility shim ---
+# Some environments may have older Streamlit versions where st.image uses
+# 'use_column_width' instead of 'use_container_width'. This wrapper maps
+# the newer kwarg to the older one automatically.
+try:
+    _orig_st_image = st.image
+    def _st_image_compat(*args, **kwargs):
+        try:
+            return _orig_st_image(*args, **kwargs)
+        except TypeError as e:
+            if 'use_container_width' in kwargs:
+                # map to legacy parameter and retry
+                val = kwargs.pop('use_container_width')
+                kwargs['use_column_width'] = val
+                return _orig_st_image(*args, **kwargs)
+            raise
+    st.image = _st_image_compat
+except Exception:
+    # If anything goes wrong, keep default behavior
+    pass
 from gtts import gTTS
 import os
 import speech_recognition as sr
@@ -45,14 +66,73 @@ except LookupError:
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize, sent_tokenize
 
+# ------------------ Environment diagnostic checks ------------------
+# This block attempts to import critical packages used by the image analysis
+# features and surfaces friendly, actionable guidance inside the Streamlit UI
+# when imports fail (common on Streamlit Cloud when requirements.txt /
+# packages.txt weren't applied or binaries are incompatible).
+import importlib
+import traceback
+
+REQUIRED_MODULES = {
+    'cv2': 'opencv-python-headless, opencv-contrib-python-headless',
+    'deepface': 'deepface, tf-keras',
+    'rembg': 'rembg, onnxruntime',
+    'onnxruntime': 'onnxruntime',
+}
+
+def check_runtime_env():
+    availability = {}
+    errors = {}
+    for mod, install_hint in REQUIRED_MODULES.items():
+        try:
+            m = importlib.import_module(mod)
+            ver = getattr(m, '__version__', None)
+            availability[mod] = ver
+        except Exception as e:
+            availability[mod] = None
+            # Store only the error message, not full traceback to avoid crashes
+            errors[mod] = str(e)
+    return availability, errors
+
+env_avail, env_errors = check_runtime_env()
+
+try:
+    # If running under Streamlit, surface diagnostics interactively
+    import streamlit as _st_check
+    if any(v is None for v in env_avail.values()):
+        with _st_check.expander("🔧 Environment diagnostics (click to expand) — Missing/failing packages detected"):
+            _st_check.write("Detected the following package issues. Update `requirements.txt` and `packages.txt` in your repo and redeploy on Streamlit Cloud.")
+            for mod, err in env_errors.items():
+                _st_check.write(f"• Module `{mod}`: failed to import.")
+                _st_check.code(err if err else "No error details available")
+                if mod == 'cv2':
+                    _st_check.info("Recommendation: Ensure compatible numpy and OpenCV binaries. Example:\n\npip install numpy==1.24.3 opencv-python-headless==4.9.0.80 opencv-contrib-python-headless==4.9.0.80")
+                
+                elif mod == 'deepface':
+                    _st_check.info("Recommendation: pip install deepface==0.0.87 tf-keras==2.15.0 tensorflow==2.15.0")
+                elif mod in ('rembg', 'onnxruntime'):
+                    _st_check.info("Recommendation: pip install rembg==2.0.55 onnxruntime==1.17.0")
+                elif mod == 'tensorflow':
+                    _st_check.info("Recommendation: pip install tensorflow==2.15.0 numpy==1.24.3")
+            _st_check.write("After editing `requirements.txt`, commit & push to GitHub. Streamlit Cloud will rebuild the environment on the next deploy.")
+except Exception:
+    # non-streamlit runs or when streamlit import isn't available — ignore
+    pass
+
 st.title("🧠 Unstructured Data Analysis")
 
 tab1, tab2, tab3 = st.tabs(["🖼️ Image Analysis", "🎧 Audio Analysis", "📝 Text Analysis"])
 
 # ------------------ IMAGE ANALYSIS TAB ------------------
 with tab1:
-    st.header("🖼️ Complete Image Analysis")
-    st.write("Upload an image and get comprehensive analysis including basic stats, face detection, object detection, age/gender/emotion prediction, and more!")
+    st.header("🖼️ Image Analysis")
+    st.write("Upload an image and choose which analysis to perform!")
+    
+    # Show package availability status
+    missing = [m for m, v in env_avail.items() if v is None]
+    if missing:
+        st.warning(f"⚠️ Missing packages: {', '.join(missing)}. Some features may not work. Check Environment diagnostics above.")
     
     uploaded_image = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png", "bmp", "gif", "webp"], key="main_image_upload")
     
@@ -70,14 +150,28 @@ with tab1:
         # Convert PIL to numpy for OpenCV
         image_np = np.array(rgb_image)
         
-        # Single button to analyze everything
-        if st.button("🔍 Analyze Everything", key="analyze_all", type="primary"):
-            
-            # ==========================
-            # 1. BASIC ANALYSIS
-            # ==========================
+        st.markdown("---")
+        st.subheader("Choose Analysis Type:")
+        
+        # Create columns for buttons (object detection removed)
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            basic_btn = st.button("📊 Basic Analysis", key="basic_analysis", use_container_width=True)
+        with col2:
+            face_btn = st.button("👤 Face Detection", key="face_detection", use_container_width=True)
+        with col3:
+            age_btn = st.button("🎭 Age/Gender/Emotion", key="age_analysis", use_container_width=True)
+        with col4:
+            bg_btn = st.button("🪄 Remove Background", key="bg_removal", use_container_width=True)
+        
+        st.markdown("---")
+        
+        # ==========================
+        # 1. BASIC ANALYSIS
+        # ==========================
+        if basic_btn:
             with st.spinner("📊 Analyzing basic characteristics..."):
-                st.markdown("---")
                 st.subheader("📊 Basic Characteristics")
                 col1, col2, col3 = st.columns(3)
                 
@@ -174,167 +268,252 @@ with tab1:
                     st.write(f"**Brightness:** {brightness_level}")
                 with col3:
                     st.write(f"**Color Richness:** {color_richness}")
-            
-            # ==========================
-            # 2. FACE DETECTION
-            # ==========================
+        
+        # ==========================
+        # 2. FACE DETECTION
+        # ==========================
+        if face_btn:
             with st.spinner("👤 Detecting faces..."):
-                st.markdown("---")
                 st.subheader("👤 Face Detection")
                 try:
-                    import cv2
                     import os
-                    
-                    # Set environment variable to avoid OpenGL issues
                     os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
-                    
-                    # Convert to OpenCV format
-                    img_cv = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
-                    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-                    
-                    # Load Haar Cascade
-                    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                    
-                    # Detect faces
-                    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-                    
-                    # Draw rectangles
-                    result_img = image_np.copy()
-                    for (x, y, w, h) in faces:
-                        cv2.rectangle(result_img, (x, y), (x + w, y + h), (0, 255, 0), 3)
-                    
-                    st.image(result_img, caption=f"Detected {len(faces)} Face(s)", use_container_width=True)
-                    
-                    if len(faces) > 0:
-                        st.success(f"✅ Found {len(faces)} face(s) in the image!")
-                        st.write("**Face Details:**")
-                        for idx, (x, y, w, h) in enumerate(faces):
-                            st.write(f"- Face {idx+1}: Position ({x}, {y}), Size {w}x{h} pixels")
+
+                    # Try DeepFace (RetinaFace ➜ MTCNN) FIRST for higher accuracy
+                    df_faces = []
+                    used_backend = None
+                    try:
+                        from deepface import DeepFace
+                        for backend in ['retinaface', 'mtcnn']:
+                            try:
+                                extracted = DeepFace.extract_faces(
+                                    img_path=image_np,
+                                    detector_backend=backend,
+                                    enforce_detection=False
+                                )
+                                for f in extracted or []:
+                                    area = f.get('facial_area') or f.get('region') or {}
+                                    x, y = int(area.get('x', 0)), int(area.get('y', 0))
+                                    w, h = int(area.get('w', 0)), int(area.get('h', 0))
+                                    if w > 0 and h > 0:
+                                        df_faces.append((x, y, w, h))
+                                if df_faces:
+                                    used_backend = backend
+                                    break
+                            except Exception:
+                                continue
+                    except Exception:
+                        pass
+
+                    faces = []
+                    # If DeepFace failed to find faces, fallback to OpenCV Haar
+                    if not df_faces:
+                        import cv2
+                        import urllib.request
+                        # Prefer OpenCV's bundled haarcascade if available
+                        cascade_path = None
+                        try:
+                            bundle_dir = getattr(cv2.data, 'haarcascades', None)
+                            if bundle_dir:
+                                candidate = os.path.join(bundle_dir, 'haarcascade_frontalface_default.xml')
+                                if os.path.exists(candidate):
+                                    cascade_path = candidate
+                        except Exception:
+                            cascade_path = None
+
+                        if cascade_path is None:
+                            local_path = 'haarcascade_frontalface_default.xml'
+                            if not os.path.exists(local_path):
+                                cascade_url = 'https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml'
+                                try:
+                                    urllib.request.urlretrieve(cascade_url, local_path)
+                                    cascade_path = local_path
+                                except Exception:
+                                    cascade_path = None
+                            else:
+                                cascade_path = local_path
+
+                        if not cascade_path or not os.path.exists(cascade_path):
+                            raise RuntimeError('Haarcascade file not found or failed to download')
+
+                        face_cascade = cv2.CascadeClassifier(cascade_path)
+                        gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+
+                        # Slightly more permissive minSize to catch smaller faces
+                        min_side = min(image_np.shape[0], image_np.shape[1])
+                        min_size = max(24, int(0.05 * min_side))  # at least 24px or 5% of shorter side
+                        faces = face_cascade.detectMultiScale(
+                            gray,
+                            scaleFactor=1.08,
+                            minNeighbors=5,
+                            minSize=(min_size, min_size)
+                        )
+
+                    total_faces = (len(df_faces) if df_faces else 0) + (len(faces) if isinstance(faces, (list, tuple, np.ndarray)) else 0)
+                    if total_faces > 0:
+                        st.success(f"✅ Detected {total_faces} face(s)!")
+                        face_img = image_np.copy()
+                        # Draw DeepFace results in orange
+                        for (x, y, w, h) in df_faces:
+                            import cv2 as _cv
+                            _cv.rectangle(face_img, (x, y), (x+w, y+h), (255, 165, 0), 2)
+                        # Draw Haar results in green
+                        for (x, y, w, h) in faces:
+                            import cv2 as _cv
+                            _cv.rectangle(face_img, (x, y), (x+w, y+h), (0, 255, 0), 2)
+
+                        caption_note = ""
+                        if df_faces:
+                            caption_note += f"DeepFace ({used_backend})"
+                        if faces is not None and len(faces) > 0:
+                            caption_note += (" • " if caption_note else "") + "OpenCV Haar"
+                        if caption_note:
+                            st.caption(f"Detectors: {caption_note}")
+                        st.image(face_img, caption="Faces Detected", use_container_width=True)
                     else:
-                        st.warning("No faces detected in the image.")
-                
+                        st.info("No faces detected. Try a clearer, frontal face with good lighting.")
+
                 except ImportError as e:
-                    st.error(f"❌ OpenCV not properly installed: {str(e)}")
-                    st.info("💡 This app requires system packages. Make sure `packages.txt` is deployed with the app.")
+                    st.error(f"❌ Required libraries not properly installed: {str(e)}")
+                    if env_avail.get('deepface') is None:
+                        st.info("💡 Fix: pip install deepface==0.0.87 tf-keras==2.15.0 tensorflow==2.15.0")
+                    elif env_avail.get('cv2') is None:
+                        st.info("💡 Fix: pip install numpy==1.24.3 opencv-python-headless==4.9.0.80 opencv-contrib-python-headless==4.9.0.80")
                 except Exception as e:
                     st.error(f"❌ Error during face detection: {str(e)}")
                     if "libGL" in str(e):
                         st.info("💡 Missing system library. Ensure `packages.txt` contains: libgl1-mesa-glx")
-            
-            # ==========================
-            # 3. OBJECT DETECTION
-            # ==========================
-            with st.spinner("🎯 Detecting objects..."):
-                st.markdown("---")
-                st.subheader("🎯 Object Detection with YOLO")
-                try:
-                    from ultralytics import YOLO
-                    import os
-                    
-                    # Set environment variable to avoid OpenGL issues
-                    os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
-                    
-                    # Load YOLO model (will download on first use)
-                    model = YOLO('yolov8n.pt')  # Using nano model for speed
-                    
-                    # Run detection
-                    results = model(image_np)
-                    
-                    # Get annotated image
-                    annotated_img = results[0].plot()
-                    
-                    st.image(annotated_img, caption="Objects Detected", use_container_width=True)
-                    
-                    # Display detection details
-                    boxes = results[0].boxes
-                    if len(boxes) > 0:
-                        st.success(f"✅ Detected {len(boxes)} object(s)!")
-                        
-                        st.write("**Detected Objects:**")
-                        detections = {}
-                        for box in boxes:
-                            cls = int(box.cls[0])
-                            conf = float(box.conf[0])
-                            label = model.names[cls]
-                            
-                            if label not in detections:
-                                detections[label] = []
-                            detections[label].append(conf)
-                        
-                        for obj, confs in detections.items():
-                            avg_conf = sum(confs) / len(confs)
-                            st.write(f"- **{obj}**: {len(confs)} instance(s) (avg confidence: {avg_conf:.2%})")
                     else:
-                        st.info("No objects detected with high confidence.")
-                
-                except ImportError as e:
-                    st.error(f"❌ YOLO not properly installed: {str(e)}")
-                    st.info("💡 Run: `pip install ultralytics`")
-                except Exception as e:
-                    st.error(f"❌ Error during object detection: {str(e)}")
-                    if "libGL" in str(e):
-                        st.info("💡 Missing system library. Ensure `packages.txt` contains: libgl1-mesa-glx")
-                    else:
-                        st.info("💡 First run will download the YOLO model (~6MB). Check your internet connection.")
-            
-            # ==========================
-            # 4. AGE, GENDER, EMOTION
-            # ==========================
+                        st.info("💡 First run may be downloading detectors. Please try again in a moment.")
+        
+        
+        
+        # ==========================
+        # 4. AGE, GENDER, EMOTION
+        # ==========================
+        if age_btn:
             with st.spinner("🎭 Analyzing age, gender & emotion..."):
-                st.markdown("---")
                 st.subheader("🎭 Age, Gender & Emotion Analysis")
                 try:
-                    from deepface import DeepFace
                     import os
-                    
-                    # Set environment variable to avoid OpenGL issues
+                    from deepface import DeepFace
+                    import numpy as _np
+                    import tempfile as _tmp
                     os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
-                    
-                    # Save image temporarily for DeepFace
-                    temp_path = "temp_image.jpg"
-                    rgb_image.save(temp_path)
-                    
-                    # Analyze image
-                    analysis = DeepFace.analyze(temp_path, actions=['age', 'gender', 'emotion'], enforce_detection=False)
-                    
-                    if isinstance(analysis, list):
+
+                    # Detect and crop the largest face for higher accuracy
+                    face_crop = None
+                    extracted = []
+                    try:
+                        extracted = DeepFace.extract_faces(
+                            img_path=image_np,
+                            detector_backend='retinaface',
+                            enforce_detection=False
+                        ) or []
+                    except Exception:
+                        # fallback to MTCNN
+                        try:
+                            extracted = DeepFace.extract_faces(
+                                img_path=image_np,
+                                detector_backend='mtcnn',
+                                enforce_detection=False
+                            ) or []
+                        except Exception:
+                            extracted = []
+
+                    if extracted:
+                        # Choose the largest detected face
+                        def _area(d):
+                            a = d.get('facial_area') or d.get('region') or {}
+                            return max(1, int(a.get('w', 0)) * int(a.get('h', 0)))
+                        best = max(extracted, key=_area)
+                        # DeepFace provides an aligned 224x224 face in 'face'
+                        face_arr = best.get('face')
+                        if isinstance(face_arr, np.ndarray):
+                            face_crop = face_arr
+
+                    def _to_bgr_uint8(arr: _np.ndarray) -> _np.ndarray:
+                        a = arr
+                        if a.dtype != _np.uint8:
+                            a = a.astype('float32')
+                            if a.max() <= 1.0:
+                                a = (a * 255.0).clip(0, 255).astype('uint8')
+                            else:
+                                a = a.clip(0, 255).astype('uint8')
+                        # if RGB, convert to BGR for DeepFace (OpenCV convention)
+                        if a.ndim == 3 and a.shape[2] == 3:
+                            a = a[:, :, ::-1].copy()
+                        return a
+
+                    analysis = None
+                    if face_crop is not None:
+                        # Use aligned face crop; ensure correct dtype/color
+                        target_img = _to_bgr_uint8(face_crop)
+                        analysis = DeepFace.analyze(
+                            img_path=target_img,
+                            actions=['age', 'gender', 'emotion'],
+                            detector_backend='skip',
+                            enforce_detection=False
+                        )
+                    else:
+                        # Use temp file path to avoid RGB/BGR ambiguity
+                        with _tmp.NamedTemporaryFile(suffix='.jpg', delete=False) as _f:
+                            rgb_image.save(_f.name)
+                            temp_path = _f.name
+                        try:
+                            analysis = DeepFace.analyze(
+                                img_path=temp_path,
+                                actions=['age', 'gender', 'emotion'],
+                                detector_backend='retinaface',
+                                enforce_detection=False
+                            )
+                        finally:
+                            try:
+                                if 'temp_path' in locals() and os.path.exists(temp_path):
+                                    os.remove(temp_path)
+                            except Exception:
+                                pass
+
+                    if isinstance(analysis, list) and analysis:
                         analysis = analysis[0]
-                    
+
                     # Display results
                     col1, col2, col3 = st.columns(3)
-                    
+
                     with col1:
                         st.metric("Predicted Age", f"{analysis['age']} years")
-                    
+
                     with col2:
                         gender = analysis['dominant_gender']
-                        gender_conf = analysis['gender'][gender]
+                        gender_conf = float(analysis['gender'][gender])
                         st.metric("Predicted Gender", gender.capitalize())
                         st.caption(f"Confidence: {gender_conf:.1f}%")
-                    
+
                     with col3:
                         emotion = analysis['dominant_emotion']
-                        emotion_conf = analysis['emotion'][emotion]
+                        emotion_conf = float(analysis['emotion'][emotion])
                         emotion_emoji = {
-                            'happy': '😊', 'sad': '😢', 'angry': '😠', 
-                            'surprise': '😲', 'fear': '😨', 'disgust': '🤢', 
+                            'happy': '😊', 'sad': '😢', 'angry': '😠',
+                            'surprise': '😲', 'fear': '😨', 'disgust': '🤢',
                             'neutral': '😐'
                         }
                         st.metric("Predicted Emotion", f"{emotion_emoji.get(emotion, '😐')} {emotion.capitalize()}")
                         st.caption(f"Confidence: {emotion_conf:.1f}%")
-                    
+
                     # Show all emotion probabilities
                     st.write("**All Emotion Probabilities:**")
-                    emotion_df = {k: f"{v:.1f}%" for k, v in analysis['emotion'].items()}
+                    emotion_df = {k: f"{float(v):.1f}%" for k, v in analysis['emotion'].items()}
                     st.json(emotion_df)
-                    
-                    # Clean up temp file
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
-                
+
+                    if face_crop is not None:
+                        st.caption("Analyzed cropped, aligned face for better accuracy.")
+
                 except ImportError as e:
                     st.error(f"❌ DeepFace not properly installed: {str(e)}")
-                    st.info("💡 Run: `pip install deepface tf-keras`")
+                    if env_avail.get('deepface') is None:
+                        st.info("💡 Fix: Add `deepface==0.0.87 tf-keras==2.15.0 tensorflow==2.15.0` to requirements.txt and redeploy")
+                    else:
+                        st.info("💡 Run: `pip install deepface tf-keras`")
                 except Exception as e:
                     st.error(f"❌ Error during analysis: {str(e)}")
                     if "libGL" in str(e):
@@ -343,16 +522,17 @@ with tab1:
                         st.warning("⚠️ No clear face detected in the image. Please use a photo with a visible frontal face.")
                     else:
                         st.info("💡 First run will download AI models (~100MB). This may take a few minutes.")
-            
-            # ==========================
-            # 5. BACKGROUND REMOVAL
-            # ==========================
+        
+        # ==========================
+        # 5. BACKGROUND REMOVAL
+        # ==========================
+        if bg_btn:
             with st.spinner("🖼️ Removing background..."):
-                st.markdown("---")
                 st.subheader("🖼️ Background Removal")
                 try:
                     from rembg import remove
                     import os
+                    import io as _io
                     
                     # Set environment variable
                     os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
@@ -360,15 +540,31 @@ with tab1:
                     # Remove background
                     output_img = remove(image_np)
                     
-                    st.image(output_img, caption="Background Removed", use_container_width=True)
+                    # Normalize to PIL RGBA for consistent handling
+                    no_bg_pil = None
+                    if isinstance(output_img, (bytes, bytearray)):
+                        try:
+                            no_bg_pil = Image.open(_io.BytesIO(output_img)).convert('RGBA')
+                        except Exception:
+                            no_bg_pil = None
+                    if no_bg_pil is None:
+                        try:
+                            no_bg_pil = Image.fromarray(output_img).convert('RGBA')
+                        except Exception:
+                            no_bg_pil = None
+                    if no_bg_pil is None:
+                        # As a fallback, just convert original to RGBA
+                        no_bg_pil = rgb_image.convert('RGBA')
+                    
+                    st.image(no_bg_pil, caption="Background Removed", use_container_width=True)
                     
                     # Save to session state for potential reuse
-                    st.session_state['no_bg_image'] = output_img
+                    st.session_state['no_bg_image_rgba'] = no_bg_pil
                 
                 except ImportError as e:
                     st.error(f"❌ Background removal library not properly installed: {str(e)}")
-                    if "onnxruntime" in str(e):
-                        st.info("💡 Run: `pip install onnxruntime rembg`")
+                    if env_avail.get('rembg') is None or env_avail.get('onnxruntime') is None:
+                        st.info("💡 Fix: Add `rembg==2.0.55 onnxruntime==1.17.0` to requirements.txt and redeploy")
                     else:
                         st.info("💡 Run: `pip install rembg`")
                 except Exception as e:
@@ -377,39 +573,49 @@ with tab1:
                         st.info("💡 Missing system library. Ensure `packages.txt` contains: libgl1-mesa-glx")
                     else:
                         st.info("💡 First run will download the background removal model (~50MB). Check your internet connection.")
-            
-            # Final success message
-            st.markdown("---")
-            st.success("🎉 **Complete Image Analysis Finished!** All features have been analyzed.")
-            
-            # Optional: Background replacement section
+
+        # Optional: Background replacement section (persistent across reruns)
+        if 'no_bg_image_rgba' in st.session_state:
             st.markdown("---")
             st.subheader("🔄 Optional: Replace Background")
-            st.write("Want to replace the background with a custom image? Upload one below:")
-            
-            background_image = st.file_uploader("Upload background image", type=["jpg", "jpeg", "png"], key="bg_upload")
-            
-            if background_image and 'no_bg_image' in st.session_state:
-                if st.button("Replace Background", key="replace_bg"):
-                    try:
-                        with st.spinner("Replacing background..."):
-                            # Load background
-                            bg_img = Image.open(background_image).convert('RGBA')
-                            no_bg = Image.fromarray(st.session_state['no_bg_image'])
-                            
-                            # Resize background to match foreground
-                            bg_img = bg_img.resize(no_bg.size, Image.Resampling.LANCZOS)
-                            
-                            # Composite images
-                            combined = Image.alpha_composite(bg_img, no_bg)
-                            
-                            st.image(combined, caption="Background Replaced", use_container_width=True)
-                            st.success("✅ Background replaced successfully!")
-                    
-                    except Exception as e:
-                        st.error(f"Error replacing background: {str(e)}")
-            elif not background_image:
-                st.info("💡 Upload a background image above to replace the removed background")
+            st.write("Use a custom image as the new background for the subject extracted above.")
+
+            background_image = st.file_uploader(
+                "Upload background image", type=["jpg", "jpeg", "png"], key="bg_upload"
+            )
+
+            if background_image and st.button("Replace Background", key="replace_bg"):
+                try:
+                    with st.spinner("Replacing background..."):
+                        # Load background and ensure RGBA
+                        bg_img = Image.open(background_image).convert('RGBA')
+                        no_bg = st.session_state['no_bg_image_rgba']
+
+                        # Resize background to match foreground
+                        bg_img = bg_img.resize(no_bg.size, Image.Resampling.LANCZOS)
+
+                        # Composite images: background underneath, foreground (with alpha) on top
+                        combined = Image.alpha_composite(bg_img, no_bg)
+
+                        # Persist and show
+                        st.session_state['replaced_bg_image'] = combined
+                        st.image(combined, caption="Background Replaced", use_container_width=True)
+                        st.success("✅ Background replaced successfully!")
+
+                        # Offer download
+                        import io as _dl_io
+                        buf = _dl_io.BytesIO()
+                        combined.save(buf, format='PNG')
+                        buf.seek(0)
+                        st.download_button(
+                            label="⬇️ Download Result (PNG)",
+                            data=buf,
+                            file_name="background_replaced.png",
+                            mime="image/png",
+                            key="download_replaced_bg"
+                        )
+                except Exception as e:
+                    st.error(f"Error replacing background: {str(e)}")
 
 with tab2:
 

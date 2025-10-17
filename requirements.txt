@@ -1,35 +1,28 @@
-# Requirements for the Streamlit Unstructured Data Analysis app
-# Notes:
-# - pydub requires ffmpeg/avlib installed on the system (not a Python package).
-#   On Windows, download ffmpeg and add it to PATH: https://ffmpeg.org/
-# - speech_recognition uses online Google Web Speech API by default (no API key required
-#   for small/demo use). For offline/local recognition you may need additional engines.
-# - nltk will download required data (punkt, stopwords) automatically on first run
+# Core
+streamlit==1.32.0
+numpy==1.24.3
+pillow==10.2.0
+pandas==2.0.3
 
-# Core Streamlit
-streamlit>=1.20
+# Audio Analysis
+gTTS==2.5.0
+SpeechRecognition==3.10.1
+pydub==0.25.1
 
-# Audio Analysis Dependencies
-gTTS>=2.3.0
-SpeechRecognition>=3.8.1
-pydub>=0.25.1
+# Image Analysis - OpenCV
+opencv-python-headless==4.9.0.80
+opencv-contrib-python-headless==4.9.0.80
 
-# Image Analysis Dependencies
-Pillow>=9.0.0
-numpy>=1.24.0
-opencv-python-headless==4.8.1.78
-ultralytics>=8.0.0
-deepface>=0.0.79
-rembg>=2.0.50
-onnxruntime>=1.16.0
-tf-keras>=2.15.0
+# Image Analysis - AI/ML
+deepface==0.0.87
+rembg==2.0.55
+
+# Deep Learning Backends
+onnxruntime==1.17.0
+tensorflow==2.15.0
+tf-keras==2.15.0
 protobuf==3.20.3
 
-# Text Analysis Dependencies
-textblob>=0.17.0
-nltk>=3.8.0
-pandas>=1.5.0
-
-# Optional: For advanced text processing
-# spacy>=3.5.0
-# langdetect>=1.0.9
+# Text Analysis
+textblob==0.18.0
+nltk==3.8.1
