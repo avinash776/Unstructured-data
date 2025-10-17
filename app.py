@@ -12,12 +12,33 @@ from textblob import TextBlob
 import nltk
 
 # Download required NLTK data (only once, but safe to run multiple times)
+# Handle both old and new NLTK versions
+import ssl
 try:
-    nltk.data.find('tokenizers/punkt')
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:
+    ssl._create_default_https_context = _create_unverified_https_context
+
+# Download punkt tokenizer (try new version first, then fall back to old)
+try:
+    from nltk.tokenize import sent_tokenize
+    sent_tokenize("test")  # Test if it works
 except LookupError:
-    nltk.download('punkt', quiet=True)
+    try:
+        nltk.download('punkt_tab', quiet=True)
+    except:
+        pass
+    try:
+        nltk.download('punkt', quiet=True)
+    except:
+        pass
+
+# Download stopwords
 try:
-    nltk.data.find('corpora/stopwords')
+    from nltk.corpus import stopwords
+    stopwords.words('english')  # Test if it works
 except LookupError:
     nltk.download('stopwords', quiet=True)
 
@@ -232,8 +253,13 @@ with tab3:
                 word_count = len(words)
                 
                 # Sentence count
-                sentences = sent_tokenize(text_to_analyze)
-                sentence_count = len(sentences)
+                try:
+                    sentences = sent_tokenize(text_to_analyze)
+                    sentence_count = len(sentences)
+                except:
+                    # Fallback: simple sentence splitting
+                    sentences = [s.strip() for s in text_to_analyze.replace('!', '.').replace('?', '.').split('.') if s.strip()]
+                    sentence_count = len(sentences)
                 
                 # Paragraph count
                 paragraphs = [p for p in text_to_analyze.split('\n\n') if p.strip()]
@@ -318,7 +344,15 @@ with tab3:
                 words_lower = [word.lower() for word in words]
                 
                 # Remove stopwords and punctuation
-                stop_words = set(stopwords.words('english'))
+                try:
+                    stop_words = set(stopwords.words('english'))
+                except:
+                    # Fallback: common English stopwords
+                    stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 
+                                 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been',
+                                 'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 
+                                 'should', 'could', 'may', 'might', 'must', 'can', 'this', 'that',
+                                 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they'}
                 filtered_words = [word for word in words_lower if word.isalnum() and word not in stop_words and len(word) > 2]
                 
                 if filtered_words:
