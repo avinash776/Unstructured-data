@@ -51,16 +51,8 @@ tab1, tab2, tab3 = st.tabs(["🖼️ Image Analysis", "🎧 Audio Analysis", "�
 
 # ------------------ IMAGE ANALYSIS TAB ------------------
 with tab1:
-    st.header("🖼️ Advanced Image Analysis")
-    
-    # Create sub-tabs for different analysis types
-    analysis_tab1, analysis_tab2, analysis_tab3, analysis_tab4, analysis_tab5 = st.tabs([
-        "📊 Basic Analysis", 
-        "👤 Face & Emotion", 
-        "🎯 Object Detection",
-        "🎭 Age/Gender/Emotion",
-        "🖼️ Background Removal"
-    ])
+    st.header("🖼️ Complete Image Analysis")
+    st.write("Upload an image and get comprehensive analysis including basic stats, face detection, object detection, age/gender/emotion prediction, and more!")
     
     uploaded_image = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png", "bmp", "gif", "webp"], key="main_image_upload")
     
@@ -78,280 +70,286 @@ with tab1:
         # Convert PIL to numpy for OpenCV
         image_np = np.array(rgb_image)
         
-        # TAB 1: BASIC ANALYSIS
-        with analysis_tab1:
-            if st.button("Analyze Basic Characteristics", key="basic_analysis"):
-                with st.spinner("Analyzing image..."):
-                    # Basic characteristics
-                    st.subheader("📊 Basic Characteristics")
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        st.metric("Format", image.format if image.format else "Unknown")
-                        st.metric("Width", f"{image.width} px")
-                    
-                    with col2:
-                        st.metric("Mode", image.mode)
-                        st.metric("Height", f"{image.height} px")
-                    
-                    with col3:
-                        # File size
-                        uploaded_image.seek(0)
-                        file_size = len(uploaded_image.read()) / 1024  # KB
-                        st.metric("File Size", f"{file_size:.2f} KB")
-                        st.metric("Aspect Ratio", f"{image.width/image.height:.2f}")
-                    
-                    # Color Analysis
-                    st.subheader("🎨 Color Analysis")
-                    
-                    # Get image statistics
-                    stat = ImageStat.Stat(rgb_image)
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.write("**Average Colors (RGB):**")
-                        st.write(f"- Red: {stat.mean[0]:.2f}")
-                        st.write(f"- Green: {stat.mean[1]:.2f}")
-                        st.write(f"- Blue: {stat.mean[2]:.2f}")
-                        
-                        # Calculate brightness
-                        brightness = sum(stat.mean[:3]) / 3
-                        st.metric("Average Brightness", f"{brightness:.2f}/255")
-                    
-                    with col2:
-                        st.write("**Standard Deviation (RGB):**")
-                        st.write(f"- Red: {stat.stddev[0]:.2f}")
-                        st.write(f"- Green: {stat.stddev[1]:.2f}")
-                        st.write(f"- Blue: {stat.stddev[2]:.2f}")
-                        
-                        # Color variance
-                        avg_stddev = sum(stat.stddev[:3]) / 3
-                        st.metric("Color Variance", f"{avg_stddev:.2f}")
-                    
-                    # Dominant Colors
-                    st.subheader("🌈 Dominant Colors")
-                    
-                    # Resize for faster processing
-                    small_image = rgb_image.resize((150, 150))
-                    pixels = np.array(small_image).reshape(-1, 3)
-                    
-                    # Get most common colors
-                    pixel_tuples = [tuple(pixel) for pixel in pixels]
-                    color_counts = Counter(pixel_tuples)
-                    dominant_colors = color_counts.most_common(5)
-                    
-                    cols = st.columns(5)
-                    for idx, (color, count) in enumerate(dominant_colors):
-                        with cols[idx]:
-                            # Create color swatch
-                            color_swatch = np.full((100, 100, 3), color, dtype=np.uint8)
-                            st.image(color_swatch, caption=f"RGB{color}", use_container_width=True)
-                            percentage = (count / len(pixel_tuples)) * 100
-                            st.write(f"{percentage:.1f}%")
-                    
-                    # Image Type Classification
-                    st.subheader("🔍 Image Characteristics")
-                    
-                    # Determine if grayscale
-                    is_grayscale = image.mode in ['L', '1'] or (image.mode == 'RGB' and stat.stddev[0] < 10 and stat.stddev[1] < 10 and stat.stddev[2] < 10)
-                    
-                    # Determine brightness level
-                    if brightness < 85:
-                        brightness_level = "Dark"
-                    elif brightness < 170:
-                        brightness_level = "Medium"
-                    else:
-                        brightness_level = "Bright"
-                    
-                    # Determine color richness
-                    if avg_stddev < 30:
-                        color_richness = "Low (Monotone)"
-                    elif avg_stddev < 60:
-                        color_richness = "Medium"
-                    else:
-                        color_richness = "High (Vibrant)"
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.write(f"**Type:** {'Grayscale' if is_grayscale else 'Color'}")
-                    with col2:
-                        st.write(f"**Brightness:** {brightness_level}")
-                    with col3:
-                        st.write(f"**Color Richness:** {color_richness}")
-                    
-                    st.success("✅ Basic image analysis complete!")
-        
-        # TAB 2: FACE DETECTION
-        with analysis_tab2:
-            st.subheader("👤 Face Detection")
-            if st.button("Detect Faces", key="face_detection"):
-                with st.spinner("Detecting faces..."):
-                    try:
-                        import cv2
-                        
-                        # Convert to OpenCV format
-                        img_cv = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
-                        gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-                        
-                        # Load Haar Cascade
-                        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                        
-                        # Detect faces
-                        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-                        
-                        # Draw rectangles
-                        result_img = image_np.copy()
-                        for (x, y, w, h) in faces:
-                            cv2.rectangle(result_img, (x, y), (x + w, y + h), (0, 255, 0), 3)
-                        
-                        st.image(result_img, caption=f"Detected {len(faces)} Face(s)", use_container_width=True)
-                        
-                        if len(faces) > 0:
-                            st.success(f"✅ Found {len(faces)} face(s) in the image!")
-                            st.write("**Face Details:**")
-                            for idx, (x, y, w, h) in enumerate(faces):
-                                st.write(f"- Face {idx+1}: Position ({x}, {y}), Size {w}x{h} pixels")
-                        else:
-                            st.warning("No faces detected in the image.")
-                    
-                    except Exception as e:
-                        st.error(f"Error during face detection: {str(e)}")
-        
-        # TAB 3: OBJECT DETECTION
-        with analysis_tab3:
-            st.subheader("🎯 Object Detection with YOLO")
-            if st.button("Detect Objects", key="object_detection"):
-                with st.spinner("Detecting objects... This may take a moment."):
-                    try:
-                        from ultralytics import YOLO
-                        
-                        # Load YOLO model (will download on first use)
-                        model = YOLO('yolov8n.pt')  # Using nano model for speed
-                        
-                        # Run detection
-                        results = model(image_np)
-                        
-                        # Get annotated image
-                        annotated_img = results[0].plot()
-                        
-                        st.image(annotated_img, caption="Objects Detected", use_container_width=True)
-                        
-                        # Display detection details
-                        boxes = results[0].boxes
-                        if len(boxes) > 0:
-                            st.success(f"✅ Detected {len(boxes)} object(s)!")
-                            
-                            st.write("**Detected Objects:**")
-                            detections = {}
-                            for box in boxes:
-                                cls = int(box.cls[0])
-                                conf = float(box.conf[0])
-                                label = model.names[cls]
-                                
-                                if label not in detections:
-                                    detections[label] = []
-                                detections[label].append(conf)
-                            
-                            for obj, confs in detections.items():
-                                avg_conf = sum(confs) / len(confs)
-                                st.write(f"- **{obj}**: {len(confs)} instance(s) (avg confidence: {avg_conf:.2%})")
-                        else:
-                            st.info("No objects detected with high confidence.")
-                    
-                    except Exception as e:
-                        st.error(f"Error during object detection: {str(e)}")
-                        st.info("Note: First run will download the YOLO model (~6MB)")
-        
-        # TAB 4: AGE, GENDER, EMOTION PREDICTION
-        with analysis_tab4:
-            st.subheader("🎭 Age, Gender & Emotion Analysis")
-            if st.button("Analyze Face Attributes", key="face_attributes"):
-                with st.spinner("Analyzing face attributes... This may take a moment."):
-                    try:
-                        from deepface import DeepFace
-                        
-                        # Save image temporarily for DeepFace
-                        temp_path = "temp_image.jpg"
-                        rgb_image.save(temp_path)
-                        
-                        # Analyze image
-                        analysis = DeepFace.analyze(temp_path, actions=['age', 'gender', 'emotion'], enforce_detection=False)
-                        
-                        if isinstance(analysis, list):
-                            analysis = analysis[0]
-                        
-                        # Display results
-                        col1, col2, col3 = st.columns(3)
-                        
-                        with col1:
-                            st.metric("Predicted Age", f"{analysis['age']} years")
-                        
-                        with col2:
-                            gender = analysis['dominant_gender']
-                            gender_conf = analysis['gender'][gender]
-                            st.metric("Predicted Gender", gender.capitalize())
-                            st.caption(f"Confidence: {gender_conf:.1f}%")
-                        
-                        with col3:
-                            emotion = analysis['dominant_emotion']
-                            emotion_conf = analysis['emotion'][emotion]
-                            emotion_emoji = {
-                                'happy': '😊', 'sad': '😢', 'angry': '😠', 
-                                'surprise': '😲', 'fear': '😨', 'disgust': '🤢', 
-                                'neutral': '😐'
-                            }
-                            st.metric("Predicted Emotion", f"{emotion_emoji.get(emotion, '😐')} {emotion.capitalize()}")
-                            st.caption(f"Confidence: {emotion_conf:.1f}%")
-                        
-                        # Show all emotion probabilities
-                        st.write("**All Emotion Probabilities:**")
-                        emotion_df = {k: f"{v:.1f}%" for k, v in analysis['emotion'].items()}
-                        st.json(emotion_df)
-                        
-                        # Clean up temp file
-                        import os
-                        if os.path.exists(temp_path):
-                            os.remove(temp_path)
-                        
-                        st.success("✅ Face attributes analysis complete!")
-                    
-                    except Exception as e:
-                        st.error(f"Error during analysis: {str(e)}")
-                        st.info("Note: Make sure there's a clear face in the image. First run will download models.")
-        
-        # TAB 5: BACKGROUND REMOVAL
-        with analysis_tab5:
-            st.subheader("🖼️ Background Removal & Replacement")
+        # Single button to analyze everything
+        if st.button("🔍 Analyze Everything", key="analyze_all", type="primary"):
             
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if st.button("Remove Background", key="remove_bg"):
-                    with st.spinner("Removing background..."):
-                        try:
-                            from rembg import remove
-                            
-                            # Remove background
-                            output_img = remove(image_np)
-                            
-                            st.image(output_img, caption="Background Removed", use_container_width=True)
-                            st.success("✅ Background removed successfully!")
-                            
-                            # Save to session state for reuse
-                            st.session_state['no_bg_image'] = output_img
-                        
-                        except Exception as e:
-                            st.error(f"Error removing background: {str(e)}")
-            
-            with col2:
-                # Background replacement
-                st.write("**Replace Background:**")
-                background_image = st.file_uploader("Upload background image", type=["jpg", "jpeg", "png"], key="bg_upload")
+            # ==========================
+            # 1. BASIC ANALYSIS
+            # ==========================
+            with st.spinner("📊 Analyzing basic characteristics..."):
+                st.markdown("---")
+                st.subheader("📊 Basic Characteristics")
+                col1, col2, col3 = st.columns(3)
                 
-                if background_image and 'no_bg_image' in st.session_state:
-                    if st.button("Replace Background", key="replace_bg"):
-                        try:
+                with col1:
+                    st.metric("Format", image.format if image.format else "Unknown")
+                    st.metric("Width", f"{image.width} px")
+                
+                with col2:
+                    st.metric("Mode", image.mode)
+                    st.metric("Height", f"{image.height} px")
+                
+                with col3:
+                    # File size
+                    uploaded_image.seek(0)
+                    file_size = len(uploaded_image.read()) / 1024  # KB
+                    st.metric("File Size", f"{file_size:.2f} KB")
+                    st.metric("Aspect Ratio", f"{image.width/image.height:.2f}")
+                
+                # Color Analysis
+                st.subheader("🎨 Color Analysis")
+                
+                # Get image statistics
+                stat = ImageStat.Stat(rgb_image)
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write("**Average Colors (RGB):**")
+                    st.write(f"- Red: {stat.mean[0]:.2f}")
+                    st.write(f"- Green: {stat.mean[1]:.2f}")
+                    st.write(f"- Blue: {stat.mean[2]:.2f}")
+                    
+                    # Calculate brightness
+                    brightness = sum(stat.mean[:3]) / 3
+                    st.metric("Average Brightness", f"{brightness:.2f}/255")
+                
+                with col2:
+                    st.write("**Standard Deviation (RGB):**")
+                    st.write(f"- Red: {stat.stddev[0]:.2f}")
+                    st.write(f"- Green: {stat.stddev[1]:.2f}")
+                    st.write(f"- Blue: {stat.stddev[2]:.2f}")
+                    
+                    # Color variance
+                    avg_stddev = sum(stat.stddev[:3]) / 3
+                    st.metric("Color Variance", f"{avg_stddev:.2f}")
+                
+                # Dominant Colors
+                st.subheader("🌈 Dominant Colors")
+                
+                # Resize for faster processing
+                small_image = rgb_image.resize((150, 150))
+                pixels = np.array(small_image).reshape(-1, 3)
+                
+                # Get most common colors
+                pixel_tuples = [tuple(pixel) for pixel in pixels]
+                color_counts = Counter(pixel_tuples)
+                dominant_colors = color_counts.most_common(5)
+                
+                cols = st.columns(5)
+                for idx, (color, count) in enumerate(dominant_colors):
+                    with cols[idx]:
+                        # Create color swatch
+                        color_swatch = np.full((100, 100, 3), color, dtype=np.uint8)
+                        st.image(color_swatch, caption=f"RGB{color}", use_container_width=True)
+                        percentage = (count / len(pixel_tuples)) * 100
+                        st.write(f"{percentage:.1f}%")
+                
+                # Image Type Classification
+                st.subheader("🔍 Image Characteristics")
+                
+                # Determine if grayscale
+                is_grayscale = image.mode in ['L', '1'] or (image.mode == 'RGB' and stat.stddev[0] < 10 and stat.stddev[1] < 10 and stat.stddev[2] < 10)
+                
+                # Determine brightness level
+                if brightness < 85:
+                    brightness_level = "Dark"
+                elif brightness < 170:
+                    brightness_level = "Medium"
+                else:
+                    brightness_level = "Bright"
+                
+                # Determine color richness
+                if avg_stddev < 30:
+                    color_richness = "Low (Monotone)"
+                elif avg_stddev < 60:
+                    color_richness = "Medium"
+                else:
+                    color_richness = "High (Vibrant)"
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.write(f"**Type:** {'Grayscale' if is_grayscale else 'Color'}")
+                with col2:
+                    st.write(f"**Brightness:** {brightness_level}")
+                with col3:
+                    st.write(f"**Color Richness:** {color_richness}")
+            
+            # ==========================
+            # 2. FACE DETECTION
+            # ==========================
+            with st.spinner("👤 Detecting faces..."):
+                st.markdown("---")
+                st.subheader("👤 Face Detection")
+                try:
+                    import cv2
+                    
+                    # Convert to OpenCV format
+                    img_cv = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+                    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+                    
+                    # Load Haar Cascade
+                    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                    
+                    # Detect faces
+                    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+                    
+                    # Draw rectangles
+                    result_img = image_np.copy()
+                    for (x, y, w, h) in faces:
+                        cv2.rectangle(result_img, (x, y), (x + w, y + h), (0, 255, 0), 3)
+                    
+                    st.image(result_img, caption=f"Detected {len(faces)} Face(s)", use_container_width=True)
+                    
+                    if len(faces) > 0:
+                        st.success(f"✅ Found {len(faces)} face(s) in the image!")
+                        st.write("**Face Details:**")
+                        for idx, (x, y, w, h) in enumerate(faces):
+                            st.write(f"- Face {idx+1}: Position ({x}, {y}), Size {w}x{h} pixels")
+                    else:
+                        st.warning("No faces detected in the image.")
+                
+                except Exception as e:
+                    st.error(f"Error during face detection: {str(e)}")
+            
+            # ==========================
+            # 3. OBJECT DETECTION
+            # ==========================
+            with st.spinner("🎯 Detecting objects..."):
+                st.markdown("---")
+                st.subheader("🎯 Object Detection with YOLO")
+                try:
+                    from ultralytics import YOLO
+                    
+                    # Load YOLO model (will download on first use)
+                    model = YOLO('yolov8n.pt')  # Using nano model for speed
+                    
+                    # Run detection
+                    results = model(image_np)
+                    
+                    # Get annotated image
+                    annotated_img = results[0].plot()
+                    
+                    st.image(annotated_img, caption="Objects Detected", use_container_width=True)
+                    
+                    # Display detection details
+                    boxes = results[0].boxes
+                    if len(boxes) > 0:
+                        st.success(f"✅ Detected {len(boxes)} object(s)!")
+                        
+                        st.write("**Detected Objects:**")
+                        detections = {}
+                        for box in boxes:
+                            cls = int(box.cls[0])
+                            conf = float(box.conf[0])
+                            label = model.names[cls]
+                            
+                            if label not in detections:
+                                detections[label] = []
+                            detections[label].append(conf)
+                        
+                        for obj, confs in detections.items():
+                            avg_conf = sum(confs) / len(confs)
+                            st.write(f"- **{obj}**: {len(confs)} instance(s) (avg confidence: {avg_conf:.2%})")
+                    else:
+                        st.info("No objects detected with high confidence.")
+                
+                except Exception as e:
+                    st.error(f"Error during object detection: {str(e)}")
+                    st.info("Note: First run will download the YOLO model (~6MB)")
+            
+            # ==========================
+            # 4. AGE, GENDER, EMOTION
+            # ==========================
+            with st.spinner("🎭 Analyzing age, gender & emotion..."):
+                st.markdown("---")
+                st.subheader("🎭 Age, Gender & Emotion Analysis")
+                try:
+                    from deepface import DeepFace
+                    
+                    # Save image temporarily for DeepFace
+                    temp_path = "temp_image.jpg"
+                    rgb_image.save(temp_path)
+                    
+                    # Analyze image
+                    analysis = DeepFace.analyze(temp_path, actions=['age', 'gender', 'emotion'], enforce_detection=False)
+                    
+                    if isinstance(analysis, list):
+                        analysis = analysis[0]
+                    
+                    # Display results
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.metric("Predicted Age", f"{analysis['age']} years")
+                    
+                    with col2:
+                        gender = analysis['dominant_gender']
+                        gender_conf = analysis['gender'][gender]
+                        st.metric("Predicted Gender", gender.capitalize())
+                        st.caption(f"Confidence: {gender_conf:.1f}%")
+                    
+                    with col3:
+                        emotion = analysis['dominant_emotion']
+                        emotion_conf = analysis['emotion'][emotion]
+                        emotion_emoji = {
+                            'happy': '😊', 'sad': '😢', 'angry': '😠', 
+                            'surprise': '😲', 'fear': '😨', 'disgust': '🤢', 
+                            'neutral': '😐'
+                        }
+                        st.metric("Predicted Emotion", f"{emotion_emoji.get(emotion, '😐')} {emotion.capitalize()}")
+                        st.caption(f"Confidence: {emotion_conf:.1f}%")
+                    
+                    # Show all emotion probabilities
+                    st.write("**All Emotion Probabilities:**")
+                    emotion_df = {k: f"{v:.1f}%" for k, v in analysis['emotion'].items()}
+                    st.json(emotion_df)
+                    
+                    # Clean up temp file
+                    import os
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                
+                except Exception as e:
+                    st.error(f"Error during analysis: {str(e)}")
+                    st.info("Note: Make sure there's a clear face in the image. First run will download models.")
+            
+            # ==========================
+            # 5. BACKGROUND REMOVAL
+            # ==========================
+            with st.spinner("🖼️ Removing background..."):
+                st.markdown("---")
+                st.subheader("🖼️ Background Removal")
+                try:
+                    from rembg import remove
+                    
+                    # Remove background
+                    output_img = remove(image_np)
+                    
+                    st.image(output_img, caption="Background Removed", use_container_width=True)
+                    
+                    # Save to session state for potential reuse
+                    st.session_state['no_bg_image'] = output_img
+                
+                except Exception as e:
+                    st.error(f"Error removing background: {str(e)}")
+                    st.info("Note: First run will download the background removal model")
+            
+            # Final success message
+            st.markdown("---")
+            st.success("🎉 **Complete Image Analysis Finished!** All features have been analyzed.")
+            
+            # Optional: Background replacement section
+            st.markdown("---")
+            st.subheader("🔄 Optional: Replace Background")
+            st.write("Want to replace the background with a custom image? Upload one below:")
+            
+            background_image = st.file_uploader("Upload background image", type=["jpg", "jpeg", "png"], key="bg_upload")
+            
+            if background_image and 'no_bg_image' in st.session_state:
+                if st.button("Replace Background", key="replace_bg"):
+                    try:
+                        with st.spinner("Replacing background..."):
                             # Load background
                             bg_img = Image.open(background_image).convert('RGBA')
                             no_bg = Image.fromarray(st.session_state['no_bg_image'])
@@ -364,13 +362,11 @@ with tab1:
                             
                             st.image(combined, caption="Background Replaced", use_container_width=True)
                             st.success("✅ Background replaced successfully!")
-                        
-                        except Exception as e:
-                            st.error(f"Error replacing background: {str(e)}")
-                elif not background_image:
-                    st.info("Upload a background image to replace")
-                else:
-                    st.info("Remove background first before replacing")
+                    
+                    except Exception as e:
+                        st.error(f"Error replacing background: {str(e)}")
+            elif not background_image:
+                st.info("💡 Upload a background image above to replace the removed background")
 
 with tab2:
 
