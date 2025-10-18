@@ -19,6 +19,7 @@ deepface==0.0.87
 rembg==2.0.55
 
 # Deep Learning Backends
+# onnxruntime wheels are available for Python <=3.11—pin Python via runtime.txt/pyproject
 onnxruntime==1.17.0
 tensorflow==2.15.0
 tf-keras==2.15.0
