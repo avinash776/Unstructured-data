@@ -2,7 +2,7 @@
 streamlit==1.32.0
 # Use a wheel-available NumPy version compatible with TF/OpenCV on Cloud
 numpy==1.26.4
-pillow==10.2.0
+pillow==10.3.0
 pandas==2.0.3
 
 # Audio Analysis
